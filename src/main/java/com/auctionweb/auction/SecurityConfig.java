@@ -30,6 +30,8 @@ public class SecurityConfig {
             .securityContext(sc -> sc.requireExplicitSave(false))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/", "/api/health").permitAll()
+                // Anyone can browse auctions (GET), but creating/editing/deleting requires auth
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(new JwtAuthFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);

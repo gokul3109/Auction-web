@@ -11,4 +11,5 @@ public interface AuctionRepository extends JpaRepository<Auction, UUID> {
     List<Auction> findByUserId(UUID userId);
     List<Auction> findByStatus(String status);
     List<Auction> findByCategory(String category);
+    List<Auction> findByStatusAndCategory(String status, String category);
 }
