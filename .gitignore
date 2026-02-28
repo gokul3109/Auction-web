@@ -28,6 +28,9 @@ Thumbs.db
 /build/
 /.gradle/
 
+# Sensitive config — never commit real credentials
+src/main/resources/application.properties
+
 # Log files
 *.log
 logs/
