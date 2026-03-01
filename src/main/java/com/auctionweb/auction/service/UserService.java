@@ -2,6 +2,7 @@ package com.auctionweb.auction.service;
 
 import com.auctionweb.auction.dto.LoginRequest;
 import com.auctionweb.auction.dto.RegisterRequest;
+import com.auctionweb.auction.dto.UpdateProfileRequest;
 import com.auctionweb.auction.dto.UserResponse;
 import com.auctionweb.auction.model.User;
 import com.auctionweb.auction.repository.UserRepository;
@@ -150,18 +151,82 @@ public class UserService {
      * Get user by ID
      */
     public UserResponse getUserById(UUID userId) {
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isEmpty()) {
-            throw new RuntimeException("User not found");
-        }
-        return mapToResponse(userOpt.get());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return mapToProfileResponse(user);
     }
 
     /**
-     * Convert a User entity into a UserResponse (safe to send to frontend).
-     * Generates a real JWT token here.
+     * GET /api/users/me — return the currently authenticated user's profile (no token re-issue)
+     */
+    public UserResponse getProfile(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return mapToProfileResponse(user);
+    }
+
+    /**
+     * PUT /api/users/me — update username, fullName, and/or password.
+     * All fields are optional; only non-null fields are applied.
+     */
+    public UserResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Update username if provided
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            if (!request.getUsername().equals(user.getUsername()) &&
+                    userRepository.existsByUsername(request.getUsername())) {
+                throw new RuntimeException("Username already taken");
+            }
+            user.setUsername(request.getUsername());
+        }
+
+        // Update fullName if provided
+        if (request.getFullName() != null) {
+            user.setFullName(request.getFullName());
+        }
+
+        // Update password if both fields are present
+        if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
+            if (request.getCurrentPassword() == null || request.getCurrentPassword().isBlank()) {
+                throw new RuntimeException("Current password is required to set a new password");
+            }
+            if (user.getPasswordHash() == null) {
+                throw new RuntimeException("Google-authenticated accounts cannot set a password here");
+            }
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+                throw new RuntimeException("Current password is incorrect");
+            }
+            user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        }
+
+        User saved = userRepository.save(user);
+        return mapToProfileResponse(saved);
+    }
+
+    /**
+     * Builds a UserResponse WITH a fresh JWT token — used for auth responses
+     * (register, login, Google login).
      */
     private UserResponse mapToResponse(User user) {
+        UserResponse response = buildBaseResponse(user);
+        response.setToken(jwtUtil.generateToken(user.getEmail(), user.getId().toString()));
+        return response;
+    }
+
+    /**
+     * Builds a UserResponse WITHOUT a token — used for profile read/update.
+     * No need to re-issue a token just because the user fetched or edited their profile.
+     */
+    private UserResponse mapToProfileResponse(User user) {
+        return buildBaseResponse(user);
+    }
+
+    /**
+     * Populates all non-token fields that are common to every UserResponse.
+     */
+    private UserResponse buildBaseResponse(User user) {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setEmail(user.getEmail());
