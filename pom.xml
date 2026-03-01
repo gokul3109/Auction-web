@@ -43,6 +43,12 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Bean Validation (@Valid, @NotBlank, @Positive, etc.) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- PostgreSQL Connector (Supabase uses PostgreSQL) -->
         <dependency>
             <groupId>org.postgresql</groupId>

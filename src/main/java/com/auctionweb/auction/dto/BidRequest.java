@@ -1,5 +1,8 @@
 package com.auctionweb.auction.dto;
 
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
 import java.math.BigDecimal;
 
 /**
@@ -8,6 +11,8 @@ import java.math.BigDecimal;
  */
 public class BidRequest {
 
+    @NotNull(message = "Bid amount is required")
+    @Positive(message = "Bid amount must be a positive number")
     private BigDecimal bidAmount;
 
     public BigDecimal getBidAmount() { return bidAmount; }
