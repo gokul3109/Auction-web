@@ -1,5 +1,9 @@
 package com.auctionweb.auction.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -9,13 +13,25 @@ import java.time.LocalDateTime;
  */
 public class AuctionRequest {
 
+    @NotBlank(message = "Title is required")
     private String title;
-    private String description;
+
+    private String description; // optional
+
+    @NotNull(message = "Starting price is required")
+    @Positive(message = "Starting price must be a positive number")
     private BigDecimal startingPrice;
+
+    @NotBlank(message = "Category is required")
     private String category;
+
+    @NotNull(message = "Start date is required")
     private LocalDateTime startDate;
+
+    @NotNull(message = "End date is required")
     private LocalDateTime endDate;
-    private String imageUrl;
+
+    private String imageUrl; // optional
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
