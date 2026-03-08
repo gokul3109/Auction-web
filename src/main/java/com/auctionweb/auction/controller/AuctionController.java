@@ -2,12 +2,15 @@ package com.auctionweb.auction.controller;
 
 import com.auctionweb.auction.dto.AuctionRequest;
 import com.auctionweb.auction.dto.AuctionResponse;
+import com.auctionweb.auction.service.AuctionEventService;
 import com.auctionweb.auction.service.AuctionService;
 import com.auctionweb.auction.service.JwtUtil;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +24,9 @@ public class AuctionController {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private AuctionEventService auctionEventService;
 
     @PostMapping
     public ResponseEntity<AuctionResponse> createAuction(
@@ -55,6 +61,22 @@ public class AuctionController {
             @RequestHeader("Authorization") String authHeader) {
         auctionService.deleteAuction(id, extractUserId(authHeader));
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Server-Sent Events (SSE) endpoint for real-time auction updates.
+     * Clients connect to this endpoint to receive bid events for a specific auction.
+     * 
+     * Usage (JavaScript):
+     *   const eventSource = new EventSource('/api/auctions/123/events');
+     *   eventSource.addEventListener('bid', (event) => {
+     *     const bid = JSON.parse(event.data);
+     *     updateUI(bid);
+     *   });
+     */
+    @GetMapping("/{id}/events")
+    public SseEmitter subscribeToAuctionEvents(@PathVariable UUID id) {
+        return auctionEventService.subscribe(id);
     }
 
     private UUID extractUserId(String authHeader) {
