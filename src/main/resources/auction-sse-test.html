@@ -1,0 +1,436 @@
+<!--
+  ⚠️ TEMPORARY TEST FILE - DELETE AFTER FRONTEND IS BUILT ⚠️
+  
+  This file is used for testing SSE functionality during development.
+  Once the React/Vue/Angular frontend is built, this can be safely deleted.
+  The backend SSE endpoints (/api/auctions/{id}/events) will remain and be used by the production frontend.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auction Real-Time Updates (SSE)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 800px;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .auction-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .auction-info h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .auction-detail {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .auction-detail strong {
+            color: #667eea;
+        }
+
+        .bids-section h3 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .bids-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .bid-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: slideIn 0.3s ease-in;
+        }
+
+        .bid-item:last-child {
+            border-bottom: none;
+        }
+
+        .bid-item.new {
+            background-color: #fff3cd;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .bid-info {
+            flex: 1;
+        }
+
+        .bid-username {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .bid-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .bid-amount {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .bid-count {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .instructions {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #1565c0;
+        }
+
+        .instructions strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .code-block {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 8px;
+            overflow-x: auto;
+            color: #333;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .auction-detail {
+                flex-direction: column;
+            }
+
+            .bid-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .bid-amount {
+                margin-top: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Auction Real-Time Updates</h1>
+        <p class="subtitle">Using Server-Sent Events (SSE) for live bid notifications</p>
+
+        <div class="instructions">
+            <strong>📌 How to Test:</strong>
+            1. Open this page in two browser tabs/windows<br>
+            2. Change the AUCTION_ID below if needed<br>
+            3. Open console (F12) to place bids via the API<br>
+            4. Watch updates appear in real-time (no refresh needed!)
+        </div>
+
+        <div id="status" class="status disconnected">
+            🔴 Disconnected - Connecting...
+        </div>
+
+        <div class="auction-info">
+            <h2>Auction #<span id="auctionId">123</span></h2>
+            <div class="auction-detail">
+                <div><strong>Status:</strong> <span id="status-text">Active</span></div>
+                <div><strong>Total Bids:</strong> <span id="totalBids">0</span></div>
+            </div>
+            <div class="auction-detail">
+                <div><strong>Current Price:</strong> $<span id="currentPrice">0.00</span></div>
+                <div><strong>Connected Users:</strong> <span id="connectedUsers">1</span></div>
+            </div>
+        </div>
+
+        <div class="bids-section">
+            <h3>Recent Bids</h3>
+            <div id="bidsList" class="bids-list">
+                <div class="bid-count">No bids yet. Start bidding!</div>
+            </div>
+        </div>
+
+        <div class="instructions" style="margin-top: 20px;">
+            <strong>💡 To test placing a bid, run this in the browser console:</strong>
+            <div class="code-block">
+// 1. Get a token (register/login first)<br/>
+const token = "YOUR_JWT_TOKEN";<br/>
+<br/>
+// 2. Place a bid<br/>
+fetch('http://localhost:8080/api/auctions/123/bids', {<br/>
+&nbsp;&nbsp;method: 'POST',<br/>
+&nbsp;&nbsp;headers: {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;'Content-Type': 'application/json',<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;'Authorization': `Bearer ${token}`<br/>
+&nbsp;&nbsp;},<br/>
+&nbsp;&nbsp;body: JSON.stringify({<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;amount: 500<br/>
+&nbsp;&nbsp;})<br/>
+}).then(r => r.json()).then(d => console.log('Bid placed!')); 
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURATION
+        const AUCTION_ID = new URLSearchParams(window.location.search).get('auctionId') || '123';
+        const API_URL = 'http://localhost:8080';
+        const SSE_ENDPOINT = `${API_URL}/api/auctions/${AUCTION_ID}/events`;
+
+        // DOM Elements
+        const statusEl = document.getElementById('status');
+        const bidsListEl = document.getElementById('bidsList');
+        const totalBidsEl = document.getElementById('totalBids');
+        const currentPriceEl = document.getElementById('currentPrice');
+        const auctionIdEl = document.getElementById('auctionId');
+
+        // State
+        let eventSource = null;
+        let bids = [];
+
+        // Update auction ID in UI
+        auctionIdEl.textContent = AUCTION_ID;
+
+        /**
+         * Connect to SSE endpoint and listen for bid events
+         */
+        function connectToAuction() {
+            console.log(`🔗 Connecting to auction #${AUCTION_ID}...`);
+            
+            try {
+                eventSource = new EventSource(SSE_ENDPOINT);
+
+                // When connection opens
+                eventSource.onopen = () => {
+                    updateStatus(true);
+                    console.log('✅ SSE Connection established');
+                };
+
+                // Listen for 'bid' events (sent by server)
+                eventSource.addEventListener('bid', (event) => {
+                    const bid = JSON.parse(event.data);
+                    console.log('📦 Received bid event:', bid);
+                    
+                    // Add to bids array
+                    bids.unshift(bid);
+                    
+                    // Update UI
+                    updateBidsList();
+                    updateAuctionInfo(bid);
+                });
+
+                // Handle errors
+                eventSource.onerror = (error) => {
+                    console.error('❌ SSE Connection error:', error);
+                    updateStatus(false);
+                    
+                    // Try to reconnect after 3 seconds
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        console.log('⏳ Reconnecting in 3 seconds...');
+                        setTimeout(connectToAuction, 3000);
+                    }
+                };
+
+            } catch (error) {
+                console.error('Failed to connect:', error);
+                updateStatus(false);
+            }
+        }
+
+        /**
+         * Update status display
+         */
+        function updateStatus(connected) {
+            if (connected) {
+                statusEl.className = 'status connected';
+                statusEl.textContent = '🟢 Connected - Receiving live updates';
+            } else {
+                statusEl.className = 'status disconnected';
+                statusEl.textContent = '🔴 Disconnected - Attempting to reconnect...';
+            }
+        }
+
+        /**
+         * Update auction info (current price, bid count)
+         */
+        function updateAuctionInfo(bid) {
+            totalBidsEl.textContent = bids.length;
+            currentPriceEl.textContent = bid.amount.toFixed(2);
+        }
+
+        /**
+         * Render bids list in UI
+         */
+        function updateBidsList() {
+            if (bids.length === 0) {
+                bidsListEl.innerHTML = '<div class="bid-count">No bids yet.</div>';
+                return;
+            }
+
+            bidsListEl.innerHTML = bids.map((bid, index) => `
+                <div class="bid-item ${index === 0 ? 'new' : ''}">
+                    <div class="bid-info">
+                        <div class="bid-username">👤 ${bid.bidderUsername}</div>
+                        <div class="bid-time">
+                            ${new Date(bid.timestamp).toLocaleTimeString()} 
+                            (Bid #${bid.totalBids})
+                        </div>
+                    </div>
+                    <div class="bid-amount">$${bid.amount.toFixed(2)}</div>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Initialize on page load
+         */
+        window.addEventListener('load', () => {
+            console.log('🚀 Auction page loaded');
+            connectToAuction();
+        });
+
+        /**
+         * Cleanup on page unload
+         */
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+                console.log('🔌 SSE connection closed');
+            }
+        });
+
+        /**
+         * Expose API helper for console testing
+         */
+        window.placeBid = function(amount, token) {
+            if (!token) {
+                console.log('❌ Token required. Set: window.TOKEN = "your_token"');
+                return;
+            }
+            
+            fetch(`${API_URL}/api/auctions/${AUCTION_ID}/bids`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ amount })
+            })
+            .then(r => r.json())
+            .then(d => console.log('✅ Bid placed:', d))
+            .catch(e => console.error('❌ Error placing bid:', e));
+        };
+
+        console.log(`\n✨ SSE Auction Test Page Ready!
+        
+📧 SSE Endpoint: ${SSE_ENDPOINT}
+🎯 Auction ID: ${AUCTION_ID}
+
+💾 To place a test bid:
+   window.TOKEN = "YOUR_JWT_TOKEN";
+   window.placeBid(500, window.TOKEN);
+        `);
+    </script>
+</body>
+</html>
