@@ -17,6 +17,9 @@ public class AuctionService {
     @Autowired
     private AuctionRepository auctionRepository;
 
+    @Autowired
+    private com.auctionweb.auction.service.AuctionEndingService auctionEndingService;
+
     /**
      * Create a new auction.
      * The userId comes from the JWT token (set by JwtAuthFilter) — not from the request body.
@@ -66,8 +69,12 @@ public class AuctionService {
 
     /**
      * Get a single auction by ID.
+     * If auction has expired, it will be marked as completed immediately.
      */
     public AuctionResponse getAuctionById(UUID id) {
+        // Check if expired and end immediately (don't wait for scheduler)
+        auctionEndingService.ensureAuctionNotExpired(id);
+        
         Auction auction = auctionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Auction not found"));
         return mapToResponse(auction);

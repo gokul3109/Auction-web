@@ -22,23 +22,36 @@ public class BidService {
     @Autowired
     private AuctionRepository auctionRepository;
 
+    @Autowired
+    private com.auctionweb.auction.service.AuctionEndingService auctionEndingService;
+
     /**
      * Place a bid on an auction.
      *
      * Rules enforced:
      *  1. Auction must exist
-     *  2. Auction must be active (status = "active")
+     *  2. Auction must be active (status = "active") and not expired
      *  3. User cannot bid on their own auction
      *  4. Bid amount must be strictly greater than the current price
      *  5. On success, update auction's currentPrice to the new bid amount
      */
     public BidResponse placeBid(UUID auctionId, BidRequest request, UUID userId) {
+        // First: Check if auction has expired and end it immediately if so
+        // This prevents the 30-second gap between expiration and scheduler running
+        auctionEndingService.ensureAuctionNotExpired(auctionId);
+
         Auction auction = auctionRepository.findById(auctionId)
                 .orElseThrow(() -> new RuntimeException("Auction not found"));
 
         // Rule 2: auction must be active
         if (!"active".equals(auction.getStatus())) {
-            throw new RuntimeException("Auction is not active");
+            throw new RuntimeException("This auction has ended and is no longer accepting bids");
+        }
+
+        // Rule 2b: auction must not have passed its end date
+        // (This should be redundant now after ensureAuctionNotExpired, but kept as safety check)
+        if (auction.getEndDate() != null && auction.getEndDate().isBefore(java.time.LocalDateTime.now())) {
+            throw new RuntimeException("This auction has expired");
         }
 
         // Rule 3: cannot bid on own auction
