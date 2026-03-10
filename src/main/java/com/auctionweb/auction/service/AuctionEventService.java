@@ -185,4 +185,46 @@ public class AuctionEventService {
                 .mapToInt(List::size)
                 .sum();
     }
+
+    /**
+     * Broadcast auction-ended event to all clients watching this auction.
+     * Notifies all connected clients in real-time when auction expires.
+     * 
+     * Example event:
+     * {
+     *   "type": "AUCTION_ENDED",
+     *   "auctionId": "...",
+     *   "hasWinner": true,
+     *   "winnerId": "...",
+     *   "winningAmount": 500.00,
+     *   "message": "This auction has ended"
+     * }
+     */
+    public void broadcastAuctionEnded(UUID auctionId, java.util.Map<String, Object> eventData) {
+        List<SseEmitter> auctionEmitters = emitters.get(auctionId);
+        
+        if (auctionEmitters == null || auctionEmitters.isEmpty()) {
+            return; // No clients watching this auction
+        }
+
+        List<SseEmitter> failedEmitters = new ArrayList<>();
+
+        for (SseEmitter emitter : auctionEmitters) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .id(java.util.UUID.randomUUID().toString())
+                        .name("auction-ended")
+                        .data(eventData, org.springframework.http.MediaType.APPLICATION_JSON)
+                        .build()
+                );
+            } catch (java.io.IOException e) {
+                // Client disconnected
+                failedEmitters.add(emitter);
+            }
+        }
+
+        // Remove failed emitters
+        failedEmitters.forEach(emitter -> removeEmitter(auctionId, emitter));
+    }
 }
+

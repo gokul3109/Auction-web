@@ -28,6 +28,9 @@ public class AuctionController {
     @Autowired
     private AuctionEventService auctionEventService;
 
+    @Autowired
+    private com.auctionweb.auction.service.AuctionEndingService auctionEndingService;
+
     @PostMapping
     public ResponseEntity<AuctionResponse> createAuction(
             @Valid @RequestBody AuctionRequest request,
@@ -77,6 +80,81 @@ public class AuctionController {
     @GetMapping("/{id}/events")
     public SseEmitter subscribeToAuctionEvents(@PathVariable UUID id) {
         return auctionEventService.subscribe(id);
+    }
+
+    /**
+     * GET /api/auctions/{id}/winner
+     * Returns the winner of a completed auction.
+     * 
+     * Response (auction has bids):
+     * {
+     *   "auctionId": "...",
+     *   "bidId": "...",
+     *   "winnerId": "...",
+     *   "winningBidAmount": 500.00,
+     *   "winTime": "2026-03-08T10:30:00",
+     *   "hasWinner": true
+     * }
+     * 
+     * Response (auction has no bids):
+     * {
+     *   "auctionId": "...",
+     *   "hasWinner": false
+     * }
+     * 
+     * Returns null if auction is still active (no winner determined yet).
+     */
+    @GetMapping("/{id}/winner")
+    public ResponseEntity<?> getWinner(@PathVariable UUID id) {
+        com.auctionweb.auction.service.AuctionWinnerInfo winnerInfo = auctionEndingService.getWinnerInfo(id);
+        if (winnerInfo == null) {
+            return ResponseEntity.ok().body(java.util.Map.of(
+                "message", "Auction is still active. No winner determined yet."
+            ));
+        }
+        return ResponseEntity.ok(winnerInfo);
+    }
+
+    /**
+     * GET /api/auctions/{id}/stats
+     * Returns comprehensive statistics about an auction.
+     * 
+     * Response:
+     * {
+     *   "auctionId": "...",
+     *   "totalBids": 5,
+     *   "highestBid": 500.00,
+     *   "lowestBid": 100.00,
+     *   "averageBid": 300.00,
+     *   "uniqueBidders": 4,
+     *   "timeRemaining": 3600,  // in seconds, null if completed
+     *   "isActive": true,
+     *   "isCompleted": false,
+     *   "winnerInfo": null      // or AuctionWinnerInfo object if completed
+     * }
+     */
+    @GetMapping("/{id}/stats")
+    public ResponseEntity<com.auctionweb.auction.service.AuctionStats> getAuctionStats(@PathVariable UUID id) {
+        return ResponseEntity.ok(auctionEndingService.getAuctionStats(id));
+    }
+
+    /**
+     * GET /api/auctions/{id}/time-remaining
+     * Returns time remaining (in seconds) for an auction.
+     * Null if auction has already ended.
+     */
+    @GetMapping("/{id}/time-remaining")
+    public ResponseEntity<?> getTimeRemaining(@PathVariable UUID id) {
+        Long secondsRemaining = auctionEndingService.getTimeRemaining(id);
+        if (secondsRemaining == null) {
+            return ResponseEntity.ok().body(java.util.Map.of(
+                "message", "Auction has ended",
+                "secondsRemaining", 0
+            ));
+        }
+        return ResponseEntity.ok().body(java.util.Map.of(
+            "secondsRemaining", secondsRemaining
+        ));
     }
 
     private UUID extractUserId(String authHeader) {
