@@ -68,6 +68,16 @@ public class AuctionService {
     }
 
     /**
+     * Get all auctions belonging to the authenticated user.
+     */
+    public List<AuctionResponse> getMyAuctions(UUID userId) {
+        return auctionRepository.findByUserId(userId)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get a single auction by ID.
      * If auction has expired, it will be marked as completed immediately.
      */

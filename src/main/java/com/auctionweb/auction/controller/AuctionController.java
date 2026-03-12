@@ -45,6 +45,12 @@ public class AuctionController {
         return ResponseEntity.ok(auctionService.getAllAuctions(status, category));
     }
 
+    @GetMapping("/my")
+    public ResponseEntity<List<AuctionResponse>> getMyAuctions(
+            @RequestHeader("Authorization") String authHeader) {
+        return ResponseEntity.ok(auctionService.getMyAuctions(extractUserId(authHeader)));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<AuctionResponse> getAuction(@PathVariable UUID id) {
         return ResponseEntity.ok(auctionService.getAuctionById(id));
