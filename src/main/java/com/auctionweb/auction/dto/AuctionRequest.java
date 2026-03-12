@@ -25,7 +25,7 @@ public class AuctionRequest {
     @NotBlank(message = "Category is required")
     private String category;
 
-    @NotNull(message = "Start date is required")
+    // optional — null means "start immediately"
     private LocalDateTime startDate;
 
     @NotNull(message = "End date is required")
