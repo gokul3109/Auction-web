@@ -94,6 +94,25 @@ public class BidService {
     }
 
     /**
+     * Get all bids placed by a specific user, enriched with auction info.
+     */
+    public List<BidResponse> getMyBids(UUID userId) {
+        return bidRepository.findByUserId(userId)
+                .stream()
+                .map(bid -> {
+                    BidResponse response = mapToResponse(bid);
+                    auctionRepository.findById(bid.getAuctionId()).ifPresent(auction -> {
+                        response.setAuctionTitle(auction.getTitle());
+                        response.setAuctionStatus(auction.getStatus());
+                        response.setAuctionImageUrl(auction.getImageUrl());
+                        response.setCurrentPrice(auction.getCurrentPrice());
+                    });
+                    return response;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Convert Bid entity → BidResponse DTO
      */
     private BidResponse mapToResponse(Bid bid) {

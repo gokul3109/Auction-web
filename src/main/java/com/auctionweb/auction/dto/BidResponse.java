@@ -6,6 +6,7 @@ import java.util.UUID;
 
 /**
  * Outgoing JSON shape for a bid.
+ * The auction* fields are populated only for the "my bids" endpoint.
  */
 public class BidResponse {
 
@@ -14,6 +15,12 @@ public class BidResponse {
     private UUID userId;
     private BigDecimal bidAmount;
     private LocalDateTime createdAt;
+
+    // Enriched fields — populated by BidService.getMyBids()
+    private String auctionTitle;
+    private String auctionStatus;
+    private String auctionImageUrl;
+    private BigDecimal currentPrice;
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
@@ -29,4 +36,16 @@ public class BidResponse {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getAuctionTitle() { return auctionTitle; }
+    public void setAuctionTitle(String auctionTitle) { this.auctionTitle = auctionTitle; }
+
+    public String getAuctionStatus() { return auctionStatus; }
+    public void setAuctionStatus(String auctionStatus) { this.auctionStatus = auctionStatus; }
+
+    public String getAuctionImageUrl() { return auctionImageUrl; }
+    public void setAuctionImageUrl(String auctionImageUrl) { this.auctionImageUrl = auctionImageUrl; }
+
+    public BigDecimal getCurrentPrice() { return currentPrice; }
+    public void setCurrentPrice(BigDecimal currentPrice) { this.currentPrice = currentPrice; }
 }
