@@ -198,6 +198,9 @@ public class UserService {
             if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
                 throw new RuntimeException("Current password is incorrect");
             }
+            if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+                throw new RuntimeException("New password cannot be the same as your current password");
+            }
             user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         }
 
