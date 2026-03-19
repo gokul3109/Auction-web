@@ -41,8 +41,9 @@ public class AuctionController {
     @GetMapping
     public ResponseEntity<List<AuctionResponse>> getAllAuctions(
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String category) {
-        return ResponseEntity.ok(auctionService.getAllAuctions(status, category));
+            @RequestParam(required = false) String category,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        return ResponseEntity.ok(auctionService.getAllAuctions(status, category, extractUserIdOptional(authHeader)));
     }
 
     @GetMapping("/my")
@@ -52,8 +53,10 @@ public class AuctionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<AuctionResponse> getAuction(@PathVariable UUID id) {
-        return ResponseEntity.ok(auctionService.getAuctionById(id));
+    public ResponseEntity<AuctionResponse> getAuction(
+            @PathVariable UUID id,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        return ResponseEntity.ok(auctionService.getAuctionById(id, extractUserIdOptional(authHeader)));
     }
 
     @PutMapping("/{id}")
@@ -165,6 +168,17 @@ public class AuctionController {
 
     private UUID extractUserId(String authHeader) {
         String token = authHeader.substring(7);
+        return UUID.fromString(jwtUtil.extractUserId(token));
+    }
+
+    private UUID extractUserIdOptional(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = authHeader.substring(7);
+        if (!jwtUtil.isTokenValid(token)) {
+            return null;
+        }
         return UUID.fromString(jwtUtil.extractUserId(token));
     }
 }

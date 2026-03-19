@@ -4,10 +4,13 @@ import com.auctionweb.auction.dto.AuctionRequest;
 import com.auctionweb.auction.dto.AuctionResponse;
 import com.auctionweb.auction.model.Auction;
 import com.auctionweb.auction.repository.AuctionRepository;
+import com.auctionweb.auction.repository.WatchlistRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -16,6 +19,9 @@ public class AuctionService {
 
     @Autowired
     private AuctionRepository auctionRepository;
+
+    @Autowired
+    private WatchlistRepository watchlistRepository;
 
     @Autowired
     private com.auctionweb.auction.service.AuctionEndingService auctionEndingService;
@@ -39,7 +45,7 @@ public class AuctionService {
         auction.setImageUrl(request.getImageUrl());
 
         Auction saved = auctionRepository.save(auction);
-        return mapToResponse(saved);
+        return mapToResponse(saved, false);
     }
 
     /**
@@ -49,7 +55,7 @@ public class AuctionService {
      *   GET /api/auctions?status=active        → only active auctions
      *   GET /api/auctions?category=electronics → only electronics
      */
-    public List<AuctionResponse> getAllAuctions(String status, String category) {
+    public List<AuctionResponse> getAllAuctions(String status, String category, UUID currentUserId) {
         List<Auction> auctions;
 
         if (status != null && category != null) {
@@ -62,8 +68,10 @@ public class AuctionService {
             auctions = auctionRepository.findAll();
         }
 
+        Set<UUID> watchlistedAuctionIds = getWatchlistedAuctionIds(currentUserId);
+
         return auctions.stream()
-                .map(this::mapToResponse)
+            .map(auction -> mapToResponse(auction, watchlistedAuctionIds.contains(auction.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -71,9 +79,11 @@ public class AuctionService {
      * Get all auctions belonging to the authenticated user.
      */
     public List<AuctionResponse> getMyAuctions(UUID userId) {
+        Set<UUID> watchlistedAuctionIds = getWatchlistedAuctionIds(userId);
+
         return auctionRepository.findByUserId(userId)
                 .stream()
-                .map(this::mapToResponse)
+            .map(auction -> mapToResponse(auction, watchlistedAuctionIds.contains(auction.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -81,13 +91,16 @@ public class AuctionService {
      * Get a single auction by ID.
      * If auction has expired, it will be marked as completed immediately.
      */
-    public AuctionResponse getAuctionById(UUID id) {
+    public AuctionResponse getAuctionById(UUID id, UUID currentUserId) {
         // Check if expired and end immediately (don't wait for scheduler)
         auctionEndingService.ensureAuctionNotExpired(id);
         
         Auction auction = auctionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Auction not found"));
-        return mapToResponse(auction);
+        boolean isWatchlisted = currentUserId != null
+                && watchlistRepository.existsByUserIdAndAuctionId(currentUserId, auction.getId());
+
+        return mapToResponse(auction, isWatchlisted);
     }
 
     /**
@@ -112,7 +125,8 @@ public class AuctionService {
         // Note: startingPrice and currentPrice are NOT updated once bids may exist
 
         Auction updated = auctionRepository.save(auction);
-        return mapToResponse(updated);
+        boolean isWatchlisted = watchlistRepository.existsByUserIdAndAuctionId(userId, updated.getId());
+        return mapToResponse(updated, isWatchlisted);
     }
 
     /**
@@ -134,7 +148,7 @@ public class AuctionService {
     /**
      * Convert Auction entity → AuctionResponse DTO
      */
-    private AuctionResponse mapToResponse(Auction auction) {
+    public AuctionResponse mapToResponse(Auction auction, boolean isWatchlisted) {
         AuctionResponse response = new AuctionResponse();
         response.setId(auction.getId());
         response.setUserId(auction.getUserId());
@@ -147,8 +161,20 @@ public class AuctionService {
         response.setStartDate(auction.getStartDate());
         response.setEndDate(auction.getEndDate());
         response.setImageUrl(auction.getImageUrl());
+        response.setWatchlisted(isWatchlisted);
         response.setCreatedAt(auction.getCreatedAt());
         response.setUpdatedAt(auction.getUpdatedAt());
         return response;
+    }
+
+    private Set<UUID> getWatchlistedAuctionIds(UUID currentUserId) {
+        if (currentUserId == null) {
+            return Set.of();
+        }
+
+        return watchlistRepository.findByUserId(currentUserId)
+                .stream()
+                .map(w -> w.getAuctionId())
+                .collect(Collectors.toCollection(HashSet::new));
     }
 }
