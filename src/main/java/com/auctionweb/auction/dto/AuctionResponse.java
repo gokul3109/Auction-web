@@ -1,5 +1,6 @@
 package com.auctionweb.auction.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class AuctionResponse {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private String imageUrl;
+    private boolean isWatchlisted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -56,6 +58,10 @@ public class AuctionResponse {
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    @JsonProperty("isWatchlisted")
+    public boolean isWatchlisted() { return isWatchlisted; }
+    public void setWatchlisted(boolean watchlisted) { isWatchlisted = watchlisted; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
