@@ -6,10 +6,12 @@ import com.auctionweb.auction.model.Auction;
 import com.auctionweb.auction.model.Bid;
 import com.auctionweb.auction.repository.AuctionRepository;
 import com.auctionweb.auction.repository.BidRepository;
+import com.auctionweb.auction.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -21,6 +23,15 @@ public class BidService {
 
     @Autowired
     private AuctionRepository auctionRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private EmailService emailService;
 
     @Autowired
     private com.auctionweb.auction.service.AuctionEndingService auctionEndingService;
@@ -73,9 +84,43 @@ public class BidService {
         bid.setBidAmount(request.getBidAmount());
         Bid saved = bidRepository.save(bid);
 
+        // Capture previous highest bidder BEFORE updating the price
+        Optional<Bid> previousHighest = bidRepository.findByAuctionIdOrderByBidAmountDesc(auctionId)
+                .stream()
+                .filter(b -> !b.getUserId().equals(userId))
+                .findFirst();
+
         // Update auction's current price
         auction.setCurrentPrice(request.getBidAmount());
         auctionRepository.save(auction);
+
+        // Notify previous highest bidder (outbid) — skip if they're the same user
+        previousHighest.ifPresent(prev -> {
+            if (!prev.getUserId().equals(userId)) {
+                notificationService.notifyOutbid(prev.getUserId(), auction.getTitle(), auctionId);
+                userRepository.findById(prev.getUserId()).ifPresent(prevUser ->
+                    sendEmailSilently(() -> emailService.sendOutbidEmail(
+                        prevUser.getEmail(),
+                        auction.getTitle(),
+                        "http://localhost:3000/auctions/" + auctionId
+                    ))
+                );
+            }
+        });
+
+        // Notify auction owner that a new bid was placed (skip if owner placed the bid — guarded above)
+        String bidderName = userRepository.findById(userId)
+                .map(u -> u.getUsername())
+                .orElse("A user");
+        notificationService.notifyBidReceived(auction.getUserId(), bidderName, request.getBidAmount(), auction.getTitle(), auctionId);
+        userRepository.findById(auction.getUserId()).ifPresent(owner ->
+            sendEmailSilently(() -> emailService.sendBidReceivedEmail(
+                owner.getEmail(),
+                auction.getTitle(),
+                request.getBidAmount().toString(),
+                "http://localhost:3000/auctions/" + auctionId
+            ))
+        );
 
         return mapToResponse(saved);
     }
@@ -112,9 +157,6 @@ public class BidService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Convert Bid entity → BidResponse DTO
-     */
     private BidResponse mapToResponse(Bid bid) {
         BidResponse response = new BidResponse();
         response.setId(bid.getId());
@@ -123,5 +165,14 @@ public class BidService {
         response.setBidAmount(bid.getBidAmount());
         response.setCreatedAt(bid.getCreatedAt());
         return response;
+    }
+
+    /** Sends email without letting failures break bid placement */
+    private void sendEmailSilently(Runnable emailTask) {
+        try {
+            emailTask.run();
+        } catch (Exception e) {
+            System.err.println("[EMAIL_ERROR] Failed to send email: " + e.getMessage());
+        }
     }
 }
