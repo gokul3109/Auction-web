@@ -5,6 +5,7 @@ import com.auctionweb.auction.model.Auction;
 import com.auctionweb.auction.model.Bid;
 import com.auctionweb.auction.repository.AuctionRepository;
 import com.auctionweb.auction.repository.BidRepository;
+import com.auctionweb.auction.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,15 @@ public class AuctionEndingService {
 
     @Autowired
     private BidRepository bidRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private EmailService emailService;
 
     @Autowired
     private com.auctionweb.auction.service.AuctionEventService auctionEventService;
@@ -120,15 +130,40 @@ public class AuctionEndingService {
         if (winningBid.isPresent()) {
             Bid bid = winningBid.get();
             System.out.println("[AUCTION_WON] User " + bid.getUserId() + " won with bid of " + bid.getBidAmount());
-            
-            // Future: Send notification to winner
-            // Future: Send notification to other bidders (you lost)
-            // Future: Create transaction record for payment
+
+            // In-app notification to winner
+            notificationService.notifyAuctionWon(bid.getUserId(), auction.getTitle(), bid.getBidAmount(), auction.getId());
+            // In-app notification to seller
+            notificationService.notifyAuctionSold(auction.getUserId(), auction.getTitle(), bid.getBidAmount(), auction.getId());
+
+            String auctionUrl = "http://localhost:3000/auctions/" + auction.getId();
+            // Email to winner
+            userRepository.findById(bid.getUserId()).ifPresent(winner ->
+                sendEmailSilently(() -> emailService.sendAuctionWonEmail(
+                    winner.getEmail(), auction.getTitle(), bid.getBidAmount().toString(), auctionUrl))
+            );
+            // Email to seller
+            userRepository.findById(auction.getUserId()).ifPresent(seller ->
+                sendEmailSilently(() -> emailService.sendAuctionSoldEmail(
+                    seller.getEmail(), auction.getTitle(), bid.getBidAmount().toString(), auctionUrl))
+            );
         } else {
-            // No bids - auction ended with no winner
             System.out.println("[NO_BIDS] Auction " + auction.getId() + " ended with no bids.");
-            
-            // Future: Notify seller that auction had no bids
+
+            // In-app notification to seller
+            notificationService.notifyAuctionNoBids(auction.getUserId(), auction.getTitle(), auction.getId());
+            // Email to seller
+            userRepository.findById(auction.getUserId()).ifPresent(seller ->
+                sendEmailSilently(() -> emailService.sendAuctionNoBidsEmail(seller.getEmail(), auction.getTitle()))
+            );
+        }
+    }
+
+    private void sendEmailSilently(Runnable emailTask) {
+        try {
+            emailTask.run();
+        } catch (Exception e) {
+            System.err.println("[EMAIL_ERROR] Failed to send email: " + e.getMessage());
         }
     }
 
